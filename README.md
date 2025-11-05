@@ -1,0 +1,3 @@
+# DevWell
+
+Project initialized.
