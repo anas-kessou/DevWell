@@ -1,0 +1,1 @@
+{"version":3,"file":"fatigue.routes.js","sourceRoot":"","sources":["../../src/routes/fatigue.routes.ts"],"names":[],"mappings":";;;;;AAAA,qCAAiC;AACjC,kFAA0D;AAC1D,0EAAuF;AAEvF,MAAM,MAAM,GAAG,IAAA,gBAAM,GAAE,CAAC;AAExB,MAAM,CAAC,IAAI,CAAC,SAAS,EAAE,wBAAc,EAAE,kCAAa,CAAC,CAAC;AACtD,MAAM,CAAC,GAAG,CAAC,UAAU,EAAE,wBAAc,EAAE,wCAAmB,CAAC,CAAC;AAE5D,kBAAe,MAAM,CAAC"}

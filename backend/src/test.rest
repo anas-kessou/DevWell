@@ -1,0 +1,109 @@
+### test
+GET http://localhost:5000/api/test
+Accept: application/json
+
+
+### Auth › register
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "anaskessou",
+  "email": "anaskessou@gmail.com",
+  "password": "password123"
+}
+
+
+### Auth › login
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "anaskessou@gmail.com",
+  "password": "password123"
+}
+
+
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTI3MTU3OWZiZDMzNjRiMGUzY2RmMzkiLCJpYXQiOjE3NjQxNjkwODEsImV4cCI6MTc2NDc3Mzg4MX0.w3fnAbbANX529l2bXXN2pyi89nH92ofMQpZiwpP9kUY
+
+
+### Auth › profile
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+Accept: application/json
+
+
+
+### Fatigue › detect
+POST http://localhost:5000/api/fatigue/detect
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+Content-Type: application/json
+
+{
+  "status": "drowsy",
+  "confidence": 0.82,
+  "metrics": {
+    "source": "rest-client"
+  },
+  "capturedAt": "2024-06-16T10:00:00Z"
+}
+
+
+### Fatigue › history
+GET http://localhost:5000/api/fatigue/history
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+Accept: application/json
+
+
+### Feedback › add
+POST http://localhost:5000/api/feedback/add
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+Content-Type: application/json
+
+{
+  "category": "rest-client",
+  "message": "Feedback generated from REST client",
+  "rating": 5
+}
+
+
+
+### Feedback › list
+GET http://localhost:5000/api/feedback
+Accept: application/json
+
+
+### User › update profile
+PUT http://localhost:5000/api/user/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+Content-Type: application/json
+
+{
+  "username": "anaskessou",
+  "bio": "This is my updated bio"
+}
+
+
+### User › delete account
+DELETE http://localhost:5000/api/user/account
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE3MmEyZmVhNGY5ODI2ZWNhMTI1YzUiLCJpYXQiOjE3NjMxMjU4MjIsImV4cCI6MTc2MzczMDYyMn0.vcqdrM8ZQBh-KK8ZdklCivvLX5LLKWG3yr44jWDF3uI
+
+### Chatbot › send message
+POST http://localhost:5000/api/chatbot/message
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTI3MTU3OWZiZDMzNjRiMGUzY2RmMzkiLCJpYXQiOjE3NjQxNjkwODEsImV4cCI6MTc2NDc3Mzg4MX0.w3fnAbbANX529l2bXXN2pyi89nH92ofMQpZiwpP9kUY
+Content-Type: application/json
+
+{
+  "message": "Hello, how are you?",
+  "model": "openrouter",
+  "conversationHistory": [
+    {
+      "role": "user",
+      "content": "Hi!"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?"
+    }
+  ]
+}

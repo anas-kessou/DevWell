@@ -1,0 +1,1 @@
+{"version":3,"file":"fatigue.controller.d.ts","sourceRoot":"","sources":["../../../src/models/fatigue/fatigue.controller.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAC;AACnC,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,iCAAiC,CAAC;AAG5E,eAAO,MAAM,aAAa,GAAU,KAAK,oBAAoB,EAAE,KAAK,QAAQ,gDAa3E,CAAC;AAEF,eAAO,MAAM,mBAAmB,GAAU,KAAK,oBAAoB,EAAE,KAAK,QAAQ,gDAejF,CAAC"}
