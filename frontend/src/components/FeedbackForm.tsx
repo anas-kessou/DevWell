@@ -59,12 +59,12 @@ export default function FeedbackForm() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      <h3 className="text-2xl font-bold text-gray-900 mb-2">Share Your Feedback</h3>
-      <p className="text-gray-600 mb-6">Help us improve DevWell with your insights</p>
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors duration-200">
+      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Share Your Feedback</h3>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">Help us improve DevWell with your insights</p>
 
       {submitted ? (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-6 py-8 rounded-lg text-center">
+        <div className="bg-green-50 border border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 px-6 py-8 rounded-lg text-center">
           <div className="text-4xl mb-2">🎉</div>
           <p className="font-semibold text-lg">Thank you for your feedback!</p>
           <p className="text-sm mt-2">Your input helps us make DevWell better for everyone.</p>
@@ -72,13 +72,13 @@ export default function FeedbackForm() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {addFeedbackMutation.error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <div className="bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 px-4 py-3 rounded-lg">
               {addFeedbackMutation.error.message}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               How would you rate your experience? *
             </label>
             <div className="flex gap-2 justify-center">
@@ -92,17 +92,16 @@ export default function FeedbackForm() {
                   className="transition-transform hover:scale-110"
                 >
                   <Star
-                    className={`w-10 h-10 ${
-                      star <= (hoveredRating || rating)
+                    className={`w-10 h-10 ${star <= (hoveredRating || rating)
                         ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-gray-300'
-                    }`}
+                        : 'text-gray-300 dark:text-gray-600'
+                      }`}
                   />
                 </button>
               ))}
             </div>
             {rating > 0 && (
-              <p className="text-center mt-2 text-sm text-gray-600">
+              <p className="text-center mt-2 text-sm text-gray-600 dark:text-gray-400">
                 {rating === 5 && '⭐ Excellent!'}
                 {rating === 4 && '😊 Very Good!'}
                 {rating === 3 && '👍 Good'}
@@ -116,14 +115,14 @@ export default function FeedbackForm() {
           </div>
 
           <div>
-            <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Additional Comments (Optional)
             </label>
             <textarea
               id="message"
               {...register('message')}
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               placeholder="Tell us what you think about DevWell..."
             />
           </div>

@@ -1,14 +1,5 @@
-import { spawn } from 'child_process';
-import path from 'path';
-
-/**
- * DevWell AI Chatbot Service
- * 
- * Communicates with Python chatbot script to provide AI assistance via OpenRouter.
- * 
- * Current: Health & productivity assistance
- * Future: Code assistance, research, design patterns, tech trends
- */
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { libraryService } from './library.service';
 
 interface ChatMessage {
   role: string;
@@ -31,103 +22,128 @@ interface HealthCheckResponse {
 }
 
 class ChatbotService {
-  private pythonPath: string;
-  private scriptPath: string;
+  private ai: GoogleGenerativeAI;
+  private openRouterKey: string;
 
   constructor() {
-    this.pythonPath = process.env.PYTHON_PATH || 'python3';
-    this.scriptPath = path.join(__dirname, '../../chatbot/chat.py');
+    this.ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+    this.openRouterKey = process.env.OPENROUTER_API_KEY || '';
   }
 
-  /**
-   * Send message to chatbot and get response
-   * 
-   * @param prompt - User's message
-   * @param model - "gemini", "llama", or "auto"
-   * @param conversationHistory - Previous messages for context
-   * @returns Chatbot response
-   */
   async chat(prompt: string, model: string = 'auto', conversationHistory: ChatMessage[] = []): Promise<ChatResponse> {
-    return new Promise((resolve, reject) => {
-      const input = {
-        prompt,
-        model,
-        conversation_history: conversationHistory
-      };
-
-      // Use base64 encoding to safely pass JSON with special characters
-      const inputBase64 = Buffer.from(JSON.stringify(input)).toString('base64');
-
-      const python = spawn(this.pythonPath, [
-        '-c',
-        `
-import sys
-import json
-import base64
-sys.path.append('${path.dirname(this.scriptPath)}')
-from chat import chat
-
-input_data = json.loads(base64.b64decode('${inputBase64}').decode('utf-8'))
-result = chat(
-    prompt=input_data['prompt'],
-    model=input_data['model'],
-    conversation_history=input_data.get('conversation_history', [])
-)
-print(json.dumps(result))
-        `
-      ]);
-
-      let output = '';
-      let error = '';
-
-      python.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      python.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      python.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(`Python script exited with code ${code}: ${error}`));
-          return;
-        }
-
-        try {
-          const result = JSON.parse(output.trim());
-          resolve(result);
-        } catch (e) {
-          reject(new Error(`Failed to parse Python output: ${output}`));
-        }
-      });
-
-      python.on('error', (err) => {
-        reject(new Error(`Failed to start Python: ${err.message}`));
-      });
-    });
-  }
-
-  /**
-   * Health check - verify Python environment is set up
-   */
-  async healthCheck(): Promise<HealthCheckResponse> {
     try {
-      const result = await this.chat('test', 'auto', []);
-      return {
-        status: result.success ? 'healthy' : 'unhealthy',
-        geminiAvailable: result.success,
-        llamaAvailable: result.success,
-        error: result.error || null
-      };
+      // 1. Retrieve Context from Library (RAG)
+      const contextItems = await libraryService.search(prompt);
+      let contextString = '';
+      if (contextItems.length > 0) {
+        contextString = "\n\nRelevant Context from Personal Library:\n" +
+          contextItems.map(item => `[Source: ${item.source}]\n${item.text}`).join('\n\n');
+      }
+
+      // 2. Prepare System Prompt
+      const systemPrompt = `You are DevWell, an expert AI developer companion. 
+      Your goal is to help the developer with health, productivity, and coding.
+      
+      If the user asks a question that can be answered using the "Relevant Context" provided below, use it to answer accurately.
+      If the context is not relevant, ignore it.
+      
+      ${contextString}`;
+
+      // 3. Route to Model
+      if (model === 'gemini' || (model === 'auto' && !this.openRouterKey)) {
+        return this.chatWithGemini(prompt, systemPrompt, conversationHistory);
+      } else {
+        // Default to OpenRouter (Llama 3.3) for 'auto', 'llama', 'openrouter'
+        const targetModel = model === 'llama' ? 'meta-llama/llama-3.3-70b-instruct:free' :
+          (model.startsWith('openrouter:') ? model.split(':')[1] || 'meta-llama/llama-3.3-70b-instruct:free' :
+            'meta-llama/llama-3.3-70b-instruct:free');
+
+        return this.chatWithOpenRouter(prompt, targetModel, systemPrompt, conversationHistory);
+      }
+
     } catch (error: any) {
+      console.error('Chat error:', error);
       return {
-        status: 'unhealthy',
-        error: error.message,
-        geminiAvailable: false,
-        llamaAvailable: false
+        success: false,
+        response: 'Sorry, I encountered an error processing your request.',
+        model: 'error',
+        error: error.message
       };
     }
+  }
+
+  private async chatWithGemini(prompt: string, systemInstruction: string, history: ChatMessage[]): Promise<ChatResponse> {
+    try {
+      const model = this.ai.getGenerativeModel({
+        model: "gemini-2.0-flash-exp",
+        systemInstruction
+      });
+
+      const chat = model.startChat({
+        history: history.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }))
+      });
+
+      const result = await chat.sendMessage(prompt);
+      const response = result.response.text();
+
+      return {
+        success: true,
+        response,
+        model: 'gemini-2.0-flash-exp'
+      };
+    } catch (error: any) {
+      throw new Error(`Gemini Error: ${error.message}`);
+    }
+  }
+
+  private async chatWithOpenRouter(prompt: string, model: string, systemInstruction: string, history: ChatMessage[]): Promise<ChatResponse> {
+    if (!this.openRouterKey) {
+      throw new Error("OpenRouter API Key not configured");
+    }
+
+    const messages = [
+      { role: 'system', content: systemInstruction },
+      ...history,
+      { role: 'user', content: prompt }
+    ];
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${this.openRouterKey}`,
+        "HTTP-Referer": "http://localhost:5173",
+        "X-Title": "DevWell AI Assistant",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`OpenRouter Error: ${data.error.message}`);
+    }
+
+    return {
+      success: true,
+      response: data.choices[0].message.content,
+      model: model
+    };
+  }
+
+  async healthCheck(): Promise<HealthCheckResponse> {
+    return {
+      status: 'healthy',
+      geminiAvailable: !!process.env.GEMINI_API_KEY,
+      llamaAvailable: !!process.env.OPENROUTER_API_KEY,
+      error: null
+    };
   }
 }
 

@@ -105,7 +105,8 @@ const getCapabilities = (req, res) => {
             'DevWell feature explanations',
             'Future: Code assistance & debugging',
             'Future: Latest dev trends & research',
-            'Future: Design patterns & best practices'
+            'Future: Design patterns & best practices',
+            'Future: innovative ideas'
         ],
         roadmap: [
             'Specialized models for code assistance',

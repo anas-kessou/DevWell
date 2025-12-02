@@ -1,4 +1,4 @@
-import express ,{ Request, Response } from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -28,6 +28,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/fatigue', fatigueRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+import libraryRoutes from './routes/library.routes';
+app.use('/api/library', libraryRoutes);
 
 
 export default app;

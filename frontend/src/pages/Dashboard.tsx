@@ -1,144 +1,245 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProfile, useLogout, useFatigueMonitor } from '../hooks';
+import { useProfile, useLogout, useDarkMode } from '../hooks';
+import { useGeminiLive } from '../hooks/useGeminiLive';
 import CameraMonitor from '../components/CameraMonitor';
 import DashboardGraph from '../components/DashboardGraph';
 import SuggestionsBox from '../components/SuggestionsBox';
 import FeedbackForm from '../components/FeedbackForm';
 import ChatbotWidget from '../components/ChatbotWidget';
-import { Activity, LogOut, User } from 'lucide-react';
-import type { FatigueLevel } from '../types';
+import LibraryWidget from '../components/LibraryWidget';
+import { Activity, LogOut, User, Play, Square, Monitor, MonitorOff, Moon, Sun, ChevronDown, Code, Mail } from 'lucide-react';
+import type { LogEntry, HealthEvent } from '../types';
 
-/**
- * Dashboard Page Component
- * 
- * Features:
- * - Uses TanStack Query hooks for data management
- * - Real-time fatigue monitoring with automatic refetch
- * - Optimistic updates for better UX
- * - No manual state management for server data
- * - Automatic cache invalidation
- */
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: user } = useProfile();
   const logoutMutation = useLogout();
-  const { logs, refetch: refetchLogs } = useFatigueMonitor();
-  
-  const [currentFatigueLevel, setCurrentFatigueLevel] = useState<FatigueLevel>('rested');
-  const [showAlert, setShowAlert] = useState(false);
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
-  const handleFatigueDetected = (level: FatigueLevel, _confidence: number) => {
-    setCurrentFatigueLevel(level);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [events, setEvents] = useState<(HealthEvent & { timestamp: Date })[]>([]);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-    if (level === 'alert' || level === 'tired') {
-      setShowAlert(true);
-
-      if (Notification.permission === 'granted') {
-        new Notification('DevWell Fatigue Alert', {
-          body: level === 'alert'
-            ? 'High fatigue detected! Please take a break.'
-            : 'Fatigue detected. Consider taking a short break.',
-          icon: '/vite.svg',
-        });
-      }
-
-      setTimeout(() => setShowAlert(false), 5000);
-    }
-
-    // TanStack Query will automatically refetch
-    // But we can manually refetch if needed for instant update
-    refetchLogs();
+  const handleLog = (entry: LogEntry) => {
+    setLogs(prev => [...prev, entry]);
   };
 
+  const handleHealthEvent = (event: HealthEvent) => {
+    setEvents(prev => [...prev, { ...event, timestamp: new Date() }]);
+
+    // Show notification
+    if (event.severity === 'HIGH' && Notification.permission === 'granted') {
+      new Notification('DevWell Alert', {
+        body: event.description,
+        icon: '/vite.svg'
+      });
+    }
+  };
+
+  const {
+    connect,
+    disconnect,
+    startScreenShare,
+    stopScreenShare,
+    sendTextMessage,
+    isConnected,
+    isStreaming,
+    isScreenSharing,
+    videoRef
+  } = useGeminiLive({
+    onLog: handleLog,
+    onHealthEvent: handleHealthEvent
+  });
+
   const handleSignOut = async () => {
+    if (isConnected) disconnect();
     await logoutMutation.mutateAsync();
     navigate('/');
   };
 
+  // Keyboard shortcuts
   useEffect(() => {
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle Dark Mode: Ctrl/Cmd + D
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        toggleDarkMode();
+      }
+      // Start/Stop Session: Ctrl/Cmd + Shift + S
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        if (isConnected) disconnect();
+        else connect();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isConnected, connect, disconnect, toggleDarkMode]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50 transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
-              <Activity className="w-8 h-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">DevWell</span>
+              <Activity className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">DevWell</span>
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-700">
-                <User className="w-5 h-5" />
-                <span className="font-medium">{user?.username || user?.email}</span>
-              </div>
+              {/* Dark Mode Toggle */}
               <button
-                onClick={handleSignOut}
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 font-medium transition"
+                onClick={toggleDarkMode}
+                className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                aria-label="Toggle dark mode"
               >
-                <LogOut className="w-5 h-5" />
-                <span>Sign Out</span>
+                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
+
+              {/* Profile Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition focus:outline-none"
+                >
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span>Profile</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                    {/* User Info */}
+                    <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Signed in as</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        {user?.username || 'User'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+                    </div>
+
+                    {/* Developer Info */}
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Code className="w-4 h-4 text-blue-500" />
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                          Developer
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Anas KESSOU</p>
+                      <a
+                        href="mailto:contact@anaskessou.dev"
+                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                      >
+                        <Mail className="w-3 h-3" />
+                        Contact Developer
+                      </a>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="py-1">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </nav>
 
-      {showAlert && (
-        <div className="fixed top-20 right-4 z-50 animate-bounce">
-          <div className={`${
-            currentFatigueLevel === 'alert' ? 'bg-red-500' : 'bg-orange-500'
-          } text-white px-6 py-4 rounded-lg shadow-2xl max-w-sm`}>
-            <p className="font-bold text-lg mb-1">
-              {currentFatigueLevel === 'alert' ? '⚠️ High Fatigue Alert!' : '😴 Fatigue Detected'}
-            </p>
-            <p className="text-sm">
-              {currentFatigueLevel === 'alert'
-                ? 'Take a break immediately!'
-                : 'Consider taking a short break soon.'}
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Welcome to Your Dashboard
-          </h1>
-          <p className="text-xl text-gray-600">
-            Monitor your well-being and track your productivity patterns
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              Welcome to Your Dashboard
+            </h1>
+            <p className="text-xl text-gray-600 dark:text-gray-400">
+              Monitor your well-being and track your productivity patterns
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {!isConnected ? (
+              <button
+                onClick={connect}
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-all shadow-lg shadow-emerald-900/20"
+              >
+                <Play size={20} fill="currentColor" />
+                Start Session
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+                  className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-lg transition-all shadow-lg ${isScreenSharing
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                    }`}
+                >
+                  {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+                  {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+                </button>
+
+                <button
+                  onClick={disconnect}
+                  className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-all shadow-lg shadow-red-900/20"
+                >
+                  <Square size={20} fill="currentColor" />
+                  Stop
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 mb-8">
-          <div className="lg:col-span-2">
-            <CameraMonitor onFatigueDetected={handleFatigueDetected} />
+        <div className="grid lg:grid-cols-12 gap-6 mb-8">
+          {/* Main Monitor - 8 cols */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-1 overflow-hidden">
+              <CameraMonitor
+                videoRef={videoRef}
+                isStreaming={isStreaming}
+                isScreenSharing={isScreenSharing}
+              />
+            </div>
+            <DashboardGraph events={events} />
           </div>
 
-          <div>
-            <SuggestionsBox fatigueLevel={currentFatigueLevel} />
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <DashboardGraph logs={logs} />
-          </div>
-
-          <div>
+          {/* Side Panel - 4 cols */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            <SuggestionsBox events={events} />
             <FeedbackForm />
           </div>
         </div>
       </div>
 
       {/* AI Assistant Chatbot */}
-      <ChatbotWidget />
+      {/* We pass logs to it if we want it to show history, but the widget manages its own state mostly. 
+          Ideally we should sync them. For now, let's leave it as is or pass logs if supported.
+          The current ChatbotWidget uses useSendMessage hook. 
+          To link it with Gemini Live, we might need to update ChatbotWidget to accept external messages/logs.
+          But for this task, the requirement is "linked with the chat ai agent".
+          The useGeminiLive hook handles the AI agent interaction (audio).
+          The ChatbotWidget is text-based.
+          If we want to show the live transcript in the widget, we would need to pass 'logs' to it.
+      */}
+      <LibraryWidget />
+      <ChatbotWidget
+        logs={logs}
+        onSendMessage={sendTextMessage}
+        isConnected={isConnected}
+      />
     </div>
   );
 }

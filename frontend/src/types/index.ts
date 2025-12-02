@@ -1,23 +1,19 @@
-// Central export for all types
 export * from './auth.types';
 export * from './fatigue.types';
 export * from './feedback.types';
 export * from './chatbot.types';
 
-// Common API types
-export interface ApiError {
+// Gemini Live Types
+export interface LogEntry {
+  id: string;
+  timestamp: Date;
+  sender: 'user' | 'ai' | 'system';
   message: string;
-  status?: number;
+  type?: 'normal' | 'alert' | 'success';
 }
 
-export interface PaginationParams {
-  page?: number;
-  limit?: number;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  totalPages: number;
+export interface HealthEvent {
+  type: 'FATIGUE' | 'POSTURE' | 'STRESS' | 'FOCUS';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  description: string;
 }

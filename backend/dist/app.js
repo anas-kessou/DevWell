@@ -25,5 +25,7 @@ app.use('/api/user', user_routes_1.default);
 app.use('/api/fatigue', fatigue_routes_1.default);
 app.use('/api/feedback', feedback_routes_1.default);
 app.use('/api/chatbot', chatbot_routes_1.default);
+const library_routes_1 = __importDefault(require("./routes/library.routes"));
+app.use('/api/library', library_routes_1.default);
 exports.default = app;
 //# sourceMappingURL=app.js.map
