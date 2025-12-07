@@ -46,8 +46,9 @@ export default function Dashboard() {
     isConnected,
     isStreaming,
     isScreenSharing,
-    videoRef
-    , canvasRef
+    videoRef,
+    canvasRef,
+    cameraStream
   } = useGeminiLive({
     onLog: handleLog,
     onHealthEvent: handleHealthEvent
@@ -233,6 +234,7 @@ export default function Dashboard() {
                 videoRef={videoRef}
                 isStreaming={isStreaming}
                 isScreenSharing={isScreenSharing}
+                cameraStream={cameraStream}
               />
               <canvas ref={canvasRef} className="hidden" aria-hidden />
             </div>

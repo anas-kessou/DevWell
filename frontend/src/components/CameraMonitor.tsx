@@ -1,20 +1,30 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { CameraOff, Activity, Monitor } from 'lucide-react';
 
 interface CameraMonitorProps {
   videoRef?: React.RefObject<HTMLVideoElement | null>;
   isStreaming?: boolean;
   isScreenSharing?: boolean;
+  cameraStream?: MediaStream | null;
 }
 
 const CameraMonitor: React.FC<CameraMonitorProps> = ({
   videoRef,
   isStreaming = false,
-  isScreenSharing = false
+  isScreenSharing = false,
+  cameraStream
 }) => {
+  const pipVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (isScreenSharing && cameraStream && pipVideoRef.current) {
+      pipVideoRef.current.srcObject = cameraStream;
+    }
+  }, [isScreenSharing, cameraStream]);
+
   return (
     <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 group">
-      {/* Video Element */}
+      {/* Video Element (Main) */}
       <video
         ref={videoRef}
         autoPlay
@@ -22,6 +32,20 @@ const CameraMonitor: React.FC<CameraMonitorProps> = ({
         muted
         className={`w-full h-full object-cover transition-opacity duration-500 ${isStreaming ? 'opacity-100' : 'opacity-0'}`}
       />
+
+      {/* PiP Camera (Only when screen sharing) */}
+      {isScreenSharing && isStreaming && (
+        <div className="absolute bottom-4 right-4 w-48 aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-2xl border border-gray-700 z-20 transition-all hover:scale-105">
+          <video
+            ref={pipVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute bottom-1 right-1 w-2 h-2 bg-green-500 rounded-full shadow-lg"></div>
+        </div>
+      )}
 
       {/* Fallback */}
       {!isStreaming && (

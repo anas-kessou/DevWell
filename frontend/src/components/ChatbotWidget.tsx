@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Loader, Bot, Settings, Sparkles, Maximize2, Minimize2, Code2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, X, Send, Loader, Bot, Settings, Sparkles, Maximize2, Minimize2, Code2, Copy } from 'lucide-react';
 import { useSendMessage, useChatbotHealth, useDarkMode } from '../hooks';
 import type { ChatMessage, LogEntry } from '../types';
 import ReactMarkdown from 'react-markdown';
@@ -21,7 +21,7 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
     {
       id: '1',
       role: 'assistant',
-      content: '👋 **Hi! I\'m DevWell AI Assistant**\n\nI can help you with health tips and productivity.\n\nWhen **Live Session** is active, I can see what you see and hear you!',
+      content: '👋 **Hi! I\'m DevWell AI Assistant**\n\nI can help you with health tips and productivity.\n\nWhen **Live Session** is active, I can see what you see.',
       timestamp: new Date(),
       model: 'system'
     }
@@ -29,15 +29,16 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'llama' | 'openrouter' | 'auto'>('auto');
   const [showSettings, setShowSettings] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [copyStatus, setCopyStatus] = useState<Record<string, 'idle' | 'copied' | 'error'>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const sendMessageMutation = useSendMessage();
   const { data: health } = useChatbotHealth();
+
+  const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
+  const isQuotaError = lastLog?.message?.includes('Quota Exceeded') || lastLog?.message?.includes('1011');
 
   // Merge local messages with logs
   // We filter logs to only show relevant ones (e.g. system alerts, AI responses if we had them in logs)
@@ -65,51 +66,30 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
     }
   }, [isOpen]);
 
-  // Initialize Speech Recognition
-  useEffect(() => {
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
+  const copyToClipboard = async (text: string, key: string) => {
+    if (!text) return;
 
-      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        setIsRecording(false);
-      };
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
 
-      recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error', event.error);
-        setIsRecording(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-      };
+      setCopyStatus(prev => ({ ...prev, [key]: 'copied' }));
+      window.setTimeout(() => setCopyStatus(prev => ({ ...prev, [key]: 'idle' })), 2000);
+    } catch (err) {
+      console.error('Copy failed', err);
+      setCopyStatus(prev => ({ ...prev, [key]: 'error' }));
     }
-  }, []);
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-      setIsRecording(true);
-    }
-  };
-
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    // Remove markdown symbols for better speech
-    utterance.text = text.replace(/[*_`#]/g, '');
-    window.speechSynthesis.speak(utterance);
   };
 
   const handleSendMessage = async () => {
@@ -165,9 +145,6 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
 
         setLocalMessages(prev => [...prev, assistantMessage]);
 
-        if (isVoiceEnabled) {
-          speakText(result.response);
-        }
       } catch (error: any) {
         console.error('Chatbot error:', error);
         let errorText = '❌ Sorry, I encountered an error.';
@@ -237,22 +214,19 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
               </div>
               <div>
                 <h3 className="font-semibold flex items-center gap-2">
-                  {isConnected ? 'DevWell Live' : 'DevWell AI'}
+                  {isConnected ? 'DevWell Monitor' : 'DevWell AI'}
                   {isExpanded && <Code2 className="w-4 h-4 opacity-75" />}
                 </h3>
                 <p className="text-xs opacity-90">
-                  {isConnected ? '🔴 Live Session Active' : (health?.status === 'healthy' ? '🟢 Online' : '🔴 Offline')}
+                  {isConnected 
+                    ? '🔴 Monitoring Active' 
+                    : isQuotaError 
+                      ? <span className="text-red-200 font-bold animate-pulse">⚠️ Quota Exceeded (Wait 1m)</span>
+                      : (health?.status === 'healthy' ? '🟢 Online' : '🔴 Offline')}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
-                className={`p-2 hover:bg-white/20 rounded-lg transition ${isVoiceEnabled ? 'bg-white/20' : ''}`}
-                title={isVoiceEnabled ? "Disable Voice Response" : "Enable Voice Response"}
-              >
-                {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </button>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="p-2 hover:bg-white/20 rounded-lg transition"
@@ -320,30 +294,52 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   ) : (
                     <div className="relative group/msg">
-                      <button
-                        onClick={() => speakText(message.content)}
-                        className="absolute -right-8 top-0 p-1 text-gray-400 hover:text-blue-500 opacity-0 group-hover/msg:opacity-100 transition"
-                        title="Read aloud"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
+                      <div className="absolute -right-10 top-0 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition">
+                        <button
+                          onClick={() => copyToClipboard(message.content, message.id)}
+                          className="p-1 text-gray-400 hover:text-gray-100 hover:bg-gray-700 rounded-full"
+                          title={copyStatus[message.id] === 'copied' ? 'Copied!' : 'Copy response'}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            code({ node, inline, className, children, ...props }: any) {
+                            code({ inline, className, children, ...props }: any) {
                               const match = /language-(\w+)/.exec(className || '');
-                              return !inline && match ? (
-                                <SyntaxHighlighter
-                                  style={isDarkMode ? vscDarkPlus : vs}
-                                  language={match[1]}
-                                  PreTag="div"
-                                  className="rounded-lg !mt-2 !mb-2"
-                                  {...props}
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              ) : (
+                              const codeContent = String(children).replace(/\n$/, '');
+                              const codeCopyKey = `${message.id}-${codeContent.slice(0, 25)}`;
+
+                              if (!inline && match) {
+                                return (
+                                  <div className="relative group/code">
+                                    <button
+                                      onClick={() => copyToClipboard(codeContent, codeCopyKey)}
+                                      className="absolute right-2 top-2 p-1 bg-black/40 text-white rounded-full opacity-0 group-hover/code:opacity-100 transition"
+                                      title={copyStatus[codeCopyKey] === 'copied' ? 'Copied!' : 'Copy code'}
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
+                                    <SyntaxHighlighter
+                                      style={isDarkMode ? vscDarkPlus : vs}
+                                      language={match[1]}
+                                      PreTag="div"
+                                      className="rounded-lg !mt-2 !mb-2"
+                                      {...props}
+                                    >
+                                      {codeContent}
+                                    </SyntaxHighlighter>
+                                    {copyStatus[codeCopyKey] === 'copied' && (
+                                      <span className="absolute right-10 top-2 text-[10px] text-emerald-400">Copied!</span>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
                                 <code className="bg-gray-100 dark:bg-gray-700 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
                                   {children}
                                 </code>
@@ -374,23 +370,13 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
           {/* Input */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl">
             <div className="flex gap-2 items-center">
-              <button
-                onClick={toggleRecording}
-                className={`p-2 rounded-full transition-all ${isRecording
-                  ? 'bg-red-500 text-white animate-pulse shadow-lg ring-4 ring-red-200'
-                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                title="Voice Message"
-              >
-                {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
               <input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={isConnected ? "Message Live Agent..." : "Ask me anything..."}
+                placeholder={isConnected ? "Ask Gemini (Monitoring Active)..." : "Ask me anything..."}
                 className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
                 disabled={sendMessageMutation.isPending && !isConnected}
               />
