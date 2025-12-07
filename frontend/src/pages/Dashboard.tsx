@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile, useLogout, useDarkMode } from '../hooks';
 import { useGeminiLive } from '../hooks/useGeminiLive';
@@ -47,10 +47,22 @@ export default function Dashboard() {
     isStreaming,
     isScreenSharing,
     videoRef
+    , canvasRef
   } = useGeminiLive({
     onLog: handleLog,
     onHealthEvent: handleHealthEvent
   });
+
+  const geminiApiKey = (import.meta.env.VITE_API_KEY ?? '').trim();
+  const isGeminiKeyConfigured = geminiApiKey.length > 0;
+
+  const handleStartStopSession = useCallback(() => {
+    if (isConnected) {
+      disconnect();
+    } else if (isGeminiKeyConfigured) {
+      connect();
+    }
+  }, [connect, disconnect, isConnected, isGeminiKeyConfigured]);
 
   const handleSignOut = async () => {
     if (isConnected) disconnect();
@@ -69,14 +81,16 @@ export default function Dashboard() {
       // Start/Stop Session: Ctrl/Cmd + Shift + S
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
         e.preventDefault();
-        if (isConnected) disconnect();
-        else connect();
+        if (!isConnected && !isGeminiKeyConfigured) {
+          return;
+        }
+        handleStartStopSession();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isConnected, connect, disconnect, toggleDarkMode]);
+  }, [isConnected, handleStartStopSession, isGeminiKeyConfigured, toggleDarkMode]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -171,13 +185,21 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3">
             {!isConnected ? (
-              <button
-                onClick={connect}
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-all shadow-lg shadow-emerald-900/20"
-              >
-                <Play size={20} fill="currentColor" />
-                Start Session
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleStartStopSession}
+                  disabled={!isGeminiKeyConfigured}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-600/60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all shadow-lg shadow-emerald-900/20"
+                >
+                  <Play size={20} fill="currentColor" />
+                  {isGeminiKeyConfigured ? 'Start Session' : 'Add Gemini API Key'}
+                </button>
+                {!isGeminiKeyConfigured && (
+                  <p className="text-xs text-rose-500">
+                    Gemini API key missing. Set <code>VITE_API_KEY</code> in <code>frontend/.env</code> or run <code>./add-api-key.sh YOUR_KEY</code> to enable live sessions.
+                  </p>
+                )}
+              </div>
             ) : (
               <>
                 <button
@@ -212,6 +234,7 @@ export default function Dashboard() {
                 isStreaming={isStreaming}
                 isScreenSharing={isScreenSharing}
               />
+              <canvas ref={canvasRef} className="hidden" aria-hidden />
             </div>
             <DashboardGraph events={events} />
           </div>

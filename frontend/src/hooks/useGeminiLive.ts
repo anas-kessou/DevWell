@@ -188,19 +188,28 @@ export const useGeminiLive = ({ onLog, onHealthEvent }: UseGeminiLiveProps) => {
 
     const connect = useCallback(async () => {
         if (isConnected || isConnectingRef.current) return;
+
+        const geminiApiKey = (import.meta.env.VITE_API_KEY ?? '').trim();
+        if (!geminiApiKey) {
+            onLog({
+                id: uuidv4(),
+                timestamp: new Date(),
+                sender: 'system',
+                message: "Gemini API key missing. Add VITE_API_KEY to frontend/.env or run ./add-api-key.sh YOUR_KEY.",
+                type: 'alert'
+            });
+            return;
+        }
+
         isConnectingRef.current = true;
 
         try {
-            const apiKey = import.meta.env.VITE_API_KEY;
             console.log('=== Gemini Live Connection Debug ===');
-            console.log('API Key present:', !!apiKey);
-            console.log('API Key length:', apiKey?.length);
-            console.log('API Key starts with:', apiKey?.substring(0, 10) + '...');
+            console.log('API Key present:', !!geminiApiKey);
+            console.log('API Key length:', geminiApiKey.length);
+            console.log('API Key starts with:', geminiApiKey.substring(0, 10) + '...');
 
-            if (!apiKey) {
-                throw new Error("API Key not found");
-            }
-            const ai = new GoogleGenAI({ apiKey });
+            const ai = new GoogleGenAI({ apiKey: geminiApiKey });
             console.log('GoogleGenAI client created');
             console.log('ai.live available:', !!ai.live);
             console.log('ai.live.connect available:', !!ai.live?.connect);
@@ -224,6 +233,7 @@ export const useGeminiLive = ({ onLog, onHealthEvent }: UseGeminiLiveProps) => {
                     frameRate: 15
                 }
             });
+            setIsStreaming(true);
             mediaStreamRef.current = stream;
 
             if (videoRef.current) {
@@ -318,6 +328,7 @@ export const useGeminiLive = ({ onLog, onHealthEvent }: UseGeminiLiveProps) => {
             console.error("Connection failed:", e);
             onLog({ id: uuidv4(), timestamp: new Date(), sender: 'system', message: `Failed to start session: ${e instanceof Error ? e.message : String(e)}`, type: 'alert' });
             setIsConnected(false);
+            setIsStreaming(false);
             isConnectingRef.current = false;
         }
     }, [isConnected, onHealthEvent, onLog]);
@@ -348,11 +359,20 @@ export const useGeminiLive = ({ onLog, onHealthEvent }: UseGeminiLiveProps) => {
         isConnectingRef.current = false;
     }, [onLog]);
 
+    const MIN_VIDEO_FRAME_INTERVAL_MS = 12_000; // Gemini Live free tier allows ~5 RPM
+
     const startVideoStreaming = (sessionPromise: Promise<any>) => {
         if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
 
+        let lastFrameTimestamp = 0;
+
         videoIntervalRef.current = window.setInterval(() => {
             if (!videoRef.current || !canvasRef.current) return;
+
+            const now = Date.now();
+            if (now - lastFrameTimestamp < MIN_VIDEO_FRAME_INTERVAL_MS) {
+                return;
+            }
 
             const ctx = canvasRef.current.getContext('2d');
             if (!ctx) return;
@@ -370,6 +390,7 @@ export const useGeminiLive = ({ onLog, onHealthEvent }: UseGeminiLiveProps) => {
                         data: base64
                     }
                 });
+                lastFrameTimestamp = now;
             });
         }, 1000);
     };

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Loader, Bot, Settings, Sparkles, Maximize2, Minimize2, Code2 } from 'lucide-react';
+import { MessageCircle, X, Send, Loader, Bot, Settings, Sparkles, Maximize2, Minimize2, Code2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { useSendMessage, useChatbotHealth, useDarkMode } from '../hooks';
 import type { ChatMessage, LogEntry } from '../types';
 import ReactMarkdown from 'react-markdown';
@@ -29,6 +29,9 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'llama' | 'openrouter' | 'auto'>('auto');
   const [showSettings, setShowSettings] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +64,53 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
       inputRef.current?.focus();
     }
   }, [isOpen]);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => prev + (prev ? ' ' : '') + transcript);
+        setIsRecording(false);
+      };
+
+      recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error', event.error);
+        setIsRecording(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
+  }, []);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsRecording(true);
+    }
+  };
+
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Remove markdown symbols for better speech
+    utterance.text = text.replace(/[*_`#]/g, '');
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -114,6 +164,10 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
         };
 
         setLocalMessages(prev => [...prev, assistantMessage]);
+
+        if (isVoiceEnabled) {
+          speakText(result.response);
+        }
       } catch (error: any) {
         console.error('Chatbot error:', error);
         let errorText = '❌ Sorry, I encountered an error.';
@@ -170,8 +224,8 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
       {/* Chat Widget */}
       {isOpen && (
         <div className={`fixed bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700 transition-all duration-300 ${isExpanded
-            ? 'inset-6 w-auto h-auto'
-            : 'bottom-6 right-6 w-96 h-[600px]'
+          ? 'inset-6 w-auto h-auto'
+          : 'bottom-6 right-6 w-96 h-[600px]'
           }`}>
           {/* Header */}
           <div className={`text-white p-4 rounded-t-2xl flex items-center justify-between ${isConnected ? 'bg-gradient-to-r from-red-600 to-orange-600' : 'bg-gradient-to-r from-blue-600 to-purple-600'
@@ -192,6 +246,13 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
+                className={`p-2 hover:bg-white/20 rounded-lg transition ${isVoiceEnabled ? 'bg-white/20' : ''}`}
+                title={isVoiceEnabled ? "Disable Voice Response" : "Enable Voice Response"}
+              >
+                {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="p-2 hover:bg-white/20 rounded-lg transition"
@@ -249,41 +310,50 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
               >
                 <div
                   className={`${isExpanded ? 'max-w-[85%]' : 'max-w-[80%]'} rounded-2xl px-4 py-3 ${message.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                      : message.role === 'system'
-                        ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 text-gray-800 dark:text-yellow-200'
-                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                    : message.role === 'system'
+                      ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 text-gray-800 dark:text-yellow-200'
+                      : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200'
                     }`}
                 >
                   {message.role === 'user' ? (
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   ) : (
-                    <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                              <SyntaxHighlighter
-                                style={isDarkMode ? vscDarkPlus : vs}
-                                language={match[1]}
-                                PreTag="div"
-                                className="rounded-lg !mt-2 !mb-2"
-                                {...props}
-                              >
-                                {String(children).replace(/\n$/, '')}
-                              </SyntaxHighlighter>
-                            ) : (
-                              <code className="bg-gray-100 dark:bg-gray-700 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                                {children}
-                              </code>
-                            );
-                          }
-                        }}
+                    <div className="relative group/msg">
+                      <button
+                        onClick={() => speakText(message.content)}
+                        className="absolute -right-8 top-0 p-1 text-gray-400 hover:text-blue-500 opacity-0 group-hover/msg:opacity-100 transition"
+                        title="Read aloud"
                       >
-                        {message.content}
-                      </ReactMarkdown>
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({ node, inline, className, children, ...props }: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <SyntaxHighlighter
+                                  style={isDarkMode ? vscDarkPlus : vs}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  className="rounded-lg !mt-2 !mb-2"
+                                  {...props}
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className="bg-gray-100 dark:bg-gray-700 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -303,7 +373,17 @@ export default function ChatbotWidget({ logs = [], onSendMessage: externalSendMe
 
           {/* Input */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl">
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={toggleRecording}
+                className={`p-2 rounded-full transition-all ${isRecording
+                  ? 'bg-red-500 text-white animate-pulse shadow-lg ring-4 ring-red-200'
+                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                title="Voice Message"
+              >
+                {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
               <input
                 ref={inputRef}
                 type="text"
